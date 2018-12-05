@@ -1,0 +1,885 @@
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>200 Bit Fish</title>
+	<link href="css/css.css" rel="stylesheet" type="text/css">
+	<!-- Load the Quintus html5 engine -->
+	<script src="quintus-all.js"></script>
+	<!-- Load some game stuff -->
+	<script src="stages.js"></script>
+	<script src="sprites_characters.js"></script>
+	<script src="sprites_environment.js"></script>
+	<script src="sprites_effects.js"></script>
+	<script src="horseprog.js"></script>
+	<script src="tutorial.js"></script>
+	<!-- Load Bloat -->
+	<script src="vendalenger/vendalenger_intro.js"></script>
+	<script>
+		// http://stackoverflow.com/questions/901115/how-can-i-get-query-string-values-in-javascript
+		function getParameterByName(name, url) {
+			if (!url) url = window.location.href;
+			name = name.replace(/[\[\]]/g, "\\$&");
+			var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+			results = regex.exec(url);
+			if (!results) return null;
+			if (!results[2]) return '';
+			return decodeURIComponent(results[2].replace(/\+/g, " "));
+		}
+	</script>
+</head>
+
+<body>
+	<canvas id="mainCanvas" width="800" height="600" style="position:fixed; top:0px; left:0px; background-color: #67f5f00;"></canvas>
+	<script>
+		/************************ASTERISKS CANT BE CAPITALIZED************************/
+
+		/*
+		 * GAME: 200 BIT FISH
+		 * Created by Neal Nicdao (Capital_Asterisk)
+		 * August 29 2015 - Created 8:50 PM
+		 * November 14 2015 - Code is 20% cleaner
+		 * December 24 2015 - Bloat!
+		 * March 16 2016 - Almost a year in development, original plan: 2 weeks
+		 * March 21 2016 - Very close to release
+		 * March 28 2016 - Gamejolt release!
+		 * April 19 2016 - Double release!
+		 * April 27 2016 - why EQD ignore!
+		 * July 2 2016   - Step it up more
+		 * August 2 2016 - Step up complete! almost a year!
+		 * August 29 2016 - DONE! NOW FUCK IT!
+		 */
+
+		var canvas = document.getElementById("mainCanvas");
+		var keepaspect = false;
+		var sillyversion = "8.29.2016 ANNIVERSARY DRAGO"
+		var moreversion = "SU2 RELEASE 5"
+		
+		var Q;
+		var htop = "";
+		var htopTime = 0;
+		var endGame = false;
+		var darken = 0;
+		var timeleft = 0;
+		var lastlevel = "";
+		
+		var port;
+		var bundledeath;
+		
+		var bits = 0;
+		var checkpoint = -1;
+		var fishdeath = 0;
+		var ponedeath = 0;
+		var timescale = 1;
+		var datasave = "";
+		
+		var loaded = {
+			saves: "READING...",
+			sprites: false,
+			cutscenes: false,
+			backgrounds: false,
+			others: false,
+			sfx: false,
+			music: false,
+			maps: false
+		};
+		
+		// UTILITEE
+
+		var arrayRand = function(array) {
+			// Get a random element from an array
+			return array[Math.floor(Math.random() * array.length)]
+		};
+		
+		var styleRandomColor = function(ctx) {
+			/*var ram = [0, 0, 0];
+			ram[0] = (Math.floor((Math.random() * 2)) * 255);
+			ram[1] = (Math.floor((Math.random() * 2)) * 255);
+			ram[2] = (Math.floor((Math.random() * 2)) * 255);
+			while (ram[0] == 0 && ram[1] == 0 && ram[2] == 0) {
+				// Bogo-sort-ish?
+				ram[0] = (Math.floor((Math.random() * 2)) * 255);
+				ram[1] = (Math.floor((Math.random() * 2)) * 255);
+				ram[2] = (Math.floor((Math.random() * 2)) * 255);
+			}
+			ctx.fillStyle = "rgb(" + ram[0] + ", " + ram[1] + ", " + ram[2] + ")";*/
+			ctx.fillStyle = noiceColors();
+		}
+
+		var noiceColors = function() {
+			/*var ram = [0, 0, 0];
+			ram[0] = (Math.floor((Math.random() * 2)) * 255);
+			ram[1] = (Math.floor((Math.random() * 2)) * 255);
+			ram[2] = (Math.floor((Math.random() * 2)) * 255);
+			while (ram[0] == 0 && ram[1] == 0 && ram[2] == 0) {
+				// Bogo-sort-ish?
+				ram[0] = (Math.floor((Math.random() * 2)) * 255);
+				ram[1] = (Math.floor((Math.random() * 2)) * 255);
+				ram[2] = (Math.floor((Math.random() * 2)) * 255);
+			}
+			return "rgb(" + ram[0] + ", " + ram[1] + ", " + ram[2] + ")";*/
+			return "hsl(" + Math.floor(Math.random() * 360) + ", 100%, 50%)";
+		}
+		
+		var tileBack = function(ctx, stage, asset, offX, offY, sX, sY, wid, hei) {
+			ctx.save();
+			ctx.translate(-stage.viewport.x, -stage.viewport.y)
+			var offsetX = stage.viewport.x * sX + offX,
+				offsetY = stage.viewport.y * sY + offY,
+				curX, curY, startX;
+			curX = Math.floor(-offsetX % wid);
+			if (curX > 0)
+				curX -= wid;
+			curY = Math.floor(-offsetY % hei);
+			if (curY > 0)
+				curY -= hei;
+
+			startX = curX;
+			while (curY < Q.height) {
+				curX = startX;
+				while (curX < Q.width) {
+					ctx.drawImage(Q.asset(asset), Math.floor(curX + stage.viewport.x), Math.floor(
+						curY + stage.viewport.y), wid, hei);
+					curX += wid;
+				}
+				curY += hei;
+
+			}
+			ctx.restore();
+		};
+
+		var tileHorizontal = function(ctx, stage, asset, offX, offY, sX, wid, hei) {
+			ctx.save();
+			ctx.translate(-stage.viewport.x, -stage.viewport.y)
+			var offsetX = stage.viewport.x * sX + offX,
+				curX, startX;
+			curX = Math.floor(-offsetX % wid);
+			if (curX > 0)
+				curX -= wid;
+
+			startX = curX;
+			while (curX < Q.width) {
+				ctx.drawImage(Q.asset(asset), Math.floor(curX + stage.viewport.x), offY, wid,
+					hei);
+				curX += wid;
+			}
+			ctx.restore();
+		};
+		
+		var textBox = function(stage, x, y, fitx, fity, text) {
+			var chemicalsoup = stage.insert(new Q.UI.Container({
+				x: x,
+				y: y,
+				fill: "rgba(0,0,0,0.5)"
+			}));
+			var monosodiumgranite = chemicalsoup.insert(new Q.UI.Text({
+				x: 0,
+				y: 40,
+				align: "center",
+				color: "white",
+				label: text
+			}));
+			monosodiumgranite.fontString = "16px 'Press Start 2P'"
+			chemicalsoup.fit(fitx, fity);
+			chemicalsoup.p.cy += 6;
+			return chemicalsoup;
+		}
+		
+		// GAME STUFF
+
+		var startGame = function() {
+			canvas.onmousedown = null;
+			Q.stageScene("warning");
+		}
+
+		var openHtop = function() {
+			if (htopTime < Q.stage().time - 0.8)
+				if (htopTime < Q.stage().time - 4.8)
+					htopTime = Q.stage().time;
+				else
+					htopTime = Q.stage().time - 0.8;
+		}
+
+		var drawMessage = function() {
+			Q.ctx.setTransform(1, 0, 0, 1, 0, 0);
+			Q.ctx.save();
+			Q.ctx.translate(0, Math.min((Q.stage().time - htopTime) * 40, 32) - Math.max((Q.stage().time - htopTime - 4) * 40, 32));
+			Q.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+			Q.ctx.fillRect(0, 0, 800, 32);
+			
+			Q.ctx.fillStyle = "rgb(255, 255, 255)";
+			Q.ctx.font = "8px 'Press Start 2P'";
+			Q.ctx.textAlign = "left";
+			Q.ctx.fillText(htop, 10, 12);
+			Q.ctx.restore();
+
+			// Really bad code
+			var killer = Q("Killer");
+			if (killer.items.length != 0) {
+				// If theres a generic oc on map, draw health
+				styleRandomColor(Q.ctx);
+				Q.ctx.font = "24px 'Press Start 2P'";
+				if (killer.items[0].p.health <= 0)
+					Q.ctx.fillText("THE KILLER: -ALIVE", 10, 570);
+				else
+					Q.ctx.fillText("THE KILLER: " + killer.items[0].p.health + "% HP", 10,
+						570);
+			}
+			var cash = Q("Cash");
+			if (cash.items.length != 0) {
+				styleRandomColor(Q.ctx);
+				Q.ctx.font = "24px 'Press Start 2P'";
+				Q.ctx.fillText("CASH EARNED: $" + bits, 10, 570);
+			}
+			
+			// Draw coolifier
+			Q.ctx.drawImage(Q.asset("coolifier.png"), 0, 0)
+		}
+
+		var delayGame = function() {
+
+			var onColor = "rgb(68, 68, 68)"
+			var offColor = "rgb(55, 55, 55)"
+			
+			Q.ctx.setTransform(1, 0, 0, 1, 0, htopTime);
+			Q.ctx.imageSmoothingEnabled = false;
+			Q.ctx.webkitImageSmoothingEnabled = false;
+			Q.ctx.mozImageSmoothingEnabled = false;
+			Q.ctx.fillStyle = "rgb(30, 30, 30)";
+			Q.ctx.fillRect(0, 0, 800, 600);
+			Q.ctx.fillStyle = onColor;
+			Q.ctx.font = "18px Righteous";
+			Q.ctx.fillText("Load this Font", 0, -50);
+			Q.ctx.font = "18px 'Press Start 2P'";
+			Q.ctx.textAlign = "left";
+			Q.ctx.fillText("200 BIT FISH " + sillyversion, 10, 30);
+			Q.ctx.fillStyle = offColor;
+			Q.ctx.fillText(canvas.tap == 0 ? "CLICK 10 TIMES IF SOMETHING DOESN'T LOAD" : ("YOU ARE " + (10 - canvas.tap) + " CLICK(S) AWAY"), 10, 300);
+			Q.ctx.fillText("TESTED ON LATEST FIREFOX AND CHROME", 10, 330);
+			Q.ctx.fillText("HOLD [P] ANYTIME TO RETURN TO MENU", 10, 360);
+			Q.ctx.fillText("HOLD [P] ON LEVEL SELECT TO CLEAR SAVE DATA", 10, 390);
+
+			Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("SAVED GAME:  " + loaded.saves, 10, 270);
+
+			Q.ctx.fillStyle = offColor;
+			if (loaded.maps)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("MAPS:        " + (loaded.maps ? "[•]" : "[ ]"), 10, 240);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.music)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("MUSIC:       " + (loaded.music ? "[•] FINALLY" : "[ ] THIS TAKES LONG"), 10, 210);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.sfx)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("SOUNDFX:     " + (loaded.sfx ? "[•]" : "[ ]"), 10, 180);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.others)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("OTHERIMG:    " + (loaded.others ? "[•]" : "[ ]"), 10, 150);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.backgrounds)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("BACKGROUND:  " + (loaded.backgrounds ? "[•]" : "[ ]"), 10, 120);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.cutscenes)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("CUTSCENE:    " + (loaded.cutscenes ? "[•]" : "[ ]"), 10, 90);
+			Q.ctx.fillStyle = offColor;
+			if (loaded.sprites)
+				Q.ctx.fillStyle = onColor;
+			Q.ctx.fillText("SPRITES:     " + (loaded.sprites ? "[•]" : "[ ]"), 10, 60);
+			
+			if (canvas.tap < 10) {
+				if (loaded.sprites && loaded.cutscenes && loaded.backgrounds && loaded.others &&
+					loaded.sfx && loaded.music && loaded.maps) {
+					if (htopTime < -400) {
+						htopTime = 0;
+						rollTheFuckingIntroFunction(canvas, startGame);
+					} else {
+						htopTime -= 0.6;
+						htopTime *= 1.2;
+						setTimeout(delayGame, 17);
+					}
+				} else
+					setTimeout(delayGame, 50);
+			} else
+				startGame();
+		}
+
+		var addBucket = function(stage) {
+			stage.insert(new Q.TheBucket({
+				x: stage._collisionLayers[0].p.bucketx * 48 + 24,
+				y: stage._collisionLayers[0].p.buckety * 48 + 24
+			}));
+		}
+
+		var tmxMapSetup = function(stage, nofish, spartan) {
+			var manehorse;
+			var spawnX = stage._collisionLayers[0].p.bellex * 48;
+			var spawnY = stage._collisionLayers[0].p.belley * 48;
+			if (!spartan)
+				manehorse = new Q.AdorableHorse({
+					x: spawnX,
+					y: spawnY,
+					maxX: stage._collisionLayers[0].p.w,
+					maxY: stage._collisionLayers[0].p.h
+				});
+			else
+				manehorse = new Q.SpartanBelle({
+					x: spawnX,
+					y: spawnY,
+					maxX: stage._collisionLayers[0].p.w,
+					maxY: stage._collisionLayers[0].p.h
+				});
+			stage.insert(new Q.TheBucket({
+				x: stage._collisionLayers[0].p.bucketx * 48 + 24,
+				y: stage._collisionLayers[0].p.buckety * 48 + 24
+			}));
+			stage.insert(new Q.Dark({
+				horse: manehorse
+			}));
+			stage.insert(manehorse);
+			if (!nofish)
+				stage.insert(new Q.TheFish({
+					horse: manehorse,
+					x: manehorse.p.x,
+					y: manehorse.p.y
+				}));
+			//manehorse.play("walk");
+			port = stage.add("viewport");
+			port.follow(manehorse, {
+				x: true,
+				y: true
+			}, {
+				minX: 0,
+				maxX: stage._collisionLayers[0].p.w,
+				minY: 0,
+				maxY: stage._collisionLayers[0].p.h
+			});
+			stage.on("postrender", drawMessage);
+			
+			htopTime = -30;
+			
+		}
+
+		var checkPointed = function() {
+			if (checkpoint != -1) {
+				var a = Q("AdorableHorse");
+				var b = Q("SpartanBelle");
+				var horse = b.items[0];
+				var point = Q("Commipoint").items[checkpoint];
+				var fish = Q("TheFish").items[0]
+
+				if (a.length == 1) {
+					horse = a.items[0];
+				}
+
+				point.p.frame = 1;
+
+				if (fish) {
+					fish.p.x = point.p.x + 90;
+					fish.p.y = point.p.y + 8;
+				}
+
+				horse.p.x = point.p.x + 90;
+				horse.p.y = point.p.y + 8;
+			}
+		}
+
+		var level = function(levelnum) {
+			htop = "hacked into stage_" + levelnum;
+			Q.gravityY = 980;
+			Q.audio.stop()
+			Q.clearStages();
+			Q.stageScene("stage_" + levelnum);
+		}
+		
+		// The cutscene thing
+
+		var doCutScene = function(cutScene, next) {
+			var con = Q.ctx;
+			var total = "";
+			var line = 0;
+
+			var newAset = [];
+			var newText = [];
+
+			con.font = "18px 'Press Start 2P'";
+			for (var i = 0; i < cutScene.text.length; i++) {
+				var ssss = cutScene.text[i].split(" ");
+				for (var j = 0; j < ssss.length; j++) {
+					// loop through each word
+					if (con.measureText(total + " " + ssss[j]).width < 780) {
+						total = total + ssss[j];
+						if (j == ssss.length - 1) {
+							// if last
+							newAset.push(cutScene.pages[i]);
+							newText.push(total);
+						} else
+							total += " ";
+					} else {
+						newAset.push(cutScene.pages[i]);
+						newText.push(total);
+						total = "";
+						j -= 1;
+					}
+				}
+				total = "";
+				while (newAset.length % 3 != 0) {
+					// not divisible by 3, add blank
+					newAset.push(cutScene.pages[i]);
+					newText.push("");
+				}
+			}
+
+			var obj = {
+				speed: 80,
+				time: Q.stage().time,
+				stage: Q.stage(),
+				assets: newAset,
+				text: newText,
+				page: 0,
+				render: function(ctx) {
+					ctx.drawImage(Q.asset(this.assets[this.page]), 0, 0, 800, 600);
+					ctx.drawImage(Q.asset("coolifier.png"), 0, 0);
+					ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+					ctx.fillRect(0, 0, 800, 48);
+					if (this.text[this.page] != "blank") {
+						ctx.fillRect(0, 472, 800, 128);
+						ctx.font = "18px 'Press Start 2P'";
+						ctx.textAlign = "left";
+						ctx.fillStyle = "rgb(255, 255, 255)";
+						var eggs = this.stage.time - this.time
+						ctx.fillText(this.text[this.page].substr(0, Math.floor(eggs * this.speed)), 400 - ctx.measureText(this.text[this.page]).width / 2, 495);
+						ctx.fillText(this.text[this.page + 1].substr(0, Math.floor(eggs * this.speed - this.text[this.page].length)), 400 - ctx.measureText(this.text[this.page + 1]).width / 2, 495 + 32);
+						ctx.fillText(this.text[this.page + 2].substr(0, Math.floor(eggs * this.speed - (this.text[this.page + 1].length + this.text[this.page].length))), 400 - ctx.measureText(this.text[this.page + 2]).width / 2, 495 + 64);
+					}
+					ctx.fillStyle = "rgb(255, 255, 255)";
+					ctx.font = "16px 'Press Start 2P'";
+					ctx.textAlign = "left";
+					ctx.fillText("CLICK TO CONTINUE PG." + Math.floor(this.page / 2 + 1) +
+						"/" + Math.ceil(this.text.length / 2 - 1), 10, 15);
+				},
+				finish: function() {
+					this.render = function(ctx) {};
+					next();
+				}
+
+			};
+			
+			if (cutScene.speed)
+				obj.speed = cutScene.speed;
+
+			var boronthiosulphatenitride = Q.stage().insert(new Q.UI.Button({
+				x: 400,
+				y: 300,
+				w: 800,
+				h: 600,
+				border: 0,
+				radius: 0,
+				fill: "rgba(0, 0, 0, 0.3)"
+			}));
+
+			boronthiosulphatenitride.on("click", function() {
+				obj.page += 3;
+				obj.time = Q.stage().time;
+				Q.audio.play("patrick.ogg");
+				if (obj.page > obj.text.length - 3) {
+					obj.finish();
+					boronthiosulphatenitride.destroy();
+				}
+			});
+			return obj;
+		}
+
+		// Load quintus
+		Q = Quintus({
+				development: true,
+				imagePath: "reshorse/",
+				audioPath: "reshorse/",
+				dataPath: "reshorse/",
+				audioSupported: ["ogg"],
+			})
+			.include("Sprites, Anim, Scenes, Audio, Input, 2D, Touch, UI, TMX")
+			.setup("mainCanvas")
+			.touch()
+			.enableSound();
+
+		Q.input.mouseControls({
+			cursor: true
+		})
+
+		Q.input.keyboardControls({
+			65: "left",
+			68: "right",
+			LEFT: "left",
+			RIGHT: "right",
+			75: "left_rocket",
+			76: "right_rocket",
+			77: "left_rocket",
+			78: "right_rocket",
+			32: "drop",
+			80: "reset"
+		});
+
+		// Sprites in a very objecty way
+
+		loadSpritesA();
+		loadSpritesB();
+		loadSpritesC();
+
+		// Scenes
+
+		loadStages();
+		loadTutorial();
+
+		// Save data
+		
+		var newSaveData = function() {
+			// Go_Ahead_And_change_this_nobody_cares levelspassed levelspassedx2 ponedeath fishdeath ponedeathx2 fishdeathx2 ponedeath fishdeath ponedeathx2 ...
+			datasave = "Go_Ahead_And_change_this_nobody_cares -1 0 ";
+			datasave += "-1 ".repeat( 4 * (15 + 3)); // 15 stage, 3 bonus
+			localStorage.setItem("ThatGameAboutTheFish", datasave);
+			
+		}
+		
+		var loadSaveData = function() {
+			if(typeof(Storage) != "undefined") {
+				var data = localStorage.getItem("ThatGameAboutTheFish");
+				
+				if (data == null) {
+					loaded.saves = "[FIRST TIME]";
+					newSaveData();
+				} else {
+					var corrupt = false;
+					var dat = data.split(" ");
+					corrupt = dat[0] != "Go_Ahead_And_change_this_nobody_cares";
+					console.log(corrupt);
+					corrupt = corrupt || dat.length != 76;
+					console.log(corrupt);
+					if (!corrupt) {
+						dat.forEach(function(e, i, a) {
+							corrupt = corrupt || (i != 0 && parseInt(e) == NaN);
+						});
+					}
+					
+					if (corrupt) {
+						//alert("Save data is corrupted");
+						loaded.saves = "[CORRUPT!]";
+						newSaveData();
+					} else {
+						loaded.saves = "[SUCCESS!]";
+						datasave = data;
+					}
+				}
+			} else {
+				loaded.saves = "NOT SUPPORTED";
+				window.alert("Web storage is not supported on this browser. TOO BAD M8");
+			}
+		
+		}
+		
+		// Loading
+		var loadIt = function() {
+			Q.load(["sheet.png", "rocket.png", "flare.png", "fish.png", "fishd.png",
+				"gibs.png", "bucket.png", "stickman.png", "walrus.png", "shoop.png",
+				"explode.png", "splash.png", "bit.png", , "blackandredalicornoc.png",
+				"tsheet.png", "tardisjet.png", "brick.png", "boolet.png", "bird.png",
+				"fire.png", "checkpoint.png"
+			], function() {
+
+				Q.sheet("commipoint", "checkpoint.png", {
+					tilew: 16,
+					tileh: 64,
+					sx: 0,
+					sy: 0
+				});
+
+				Q.sheet("horse", "sheet.png", {
+					tilew: 100,
+					tileh: 70,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("bundle", "stickman.png", {
+					tilew: 128,
+					tileh: 128,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("rocket", "rocket.png", {
+					tilew: 24,
+					tileh: 36,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("gibs", "gibs.png", {
+					tilew: 64,
+					tileh: 64,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("boom", "explode.png", {
+					tilew: 200,
+					tileh: 200,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("noparticleflame", "fire.png", {
+					tilew: 256,
+					tileh: 256,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("water", "splash.png", {
+					tilew: 16,
+					tileh: 16,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("exterminate", "shoop.png", {
+					tilew: 128,
+					tileh: 32,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("exitbird", "bird.png", {
+					tilew: 64,
+					tileh: 128,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("redandblackoc", "blackandredalicornoc.png", {
+					tilew: 154,
+					tileh: 128,
+					sx: 0,
+					sy: 0
+				});
+				Q.sheet("tawdis", "tsheet.png", {
+					tilew: 245,
+					tileh: 256,
+					sx: 0,
+					sy: 0
+				});
+
+				Q.animations("explode", {
+					boom: {
+						frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+						rate: 1 / 10,
+						loop: false,
+						trigger: "destroy"
+					}
+				});
+				Q.animations("flame", {
+					boom: {
+						frames: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+						rate: 1 / 15,
+					}
+				});
+				Q.animations("splash", {
+					boom: {
+						frames: [0, 1, 2, 3, 4],
+						rate: 0.2,
+						loop: false,
+						trigger: "destroy"
+					}
+				});
+				Q.animations("woop", {
+					norm: {
+						frames: [0],
+						rate: 1
+					},
+					shoot: {
+						frames: [3, 2, 1],
+						rate: 1 / 15,
+						loop: false,
+						trigger: "shot"
+					},
+					hit: {
+						frames: [1, 2, 3],
+						rate: 1 / 15,
+						loop: false,
+						trigger: "boom"
+					}
+				});
+				Q.animations("flashyhorse", {
+					idle: {
+						frames: [38],
+						rate: 1
+					},
+					squish: {
+						frames: [39],
+						rate: 1
+					},
+					//scoot: {},
+					walk: {
+						frames: [12, 13, 14, 15, 16, 17, 18, 19,
+							20, 21, 22, 23, 24, 25, 26, 27
+						],
+						rate: 1 / 10
+					},
+					run: {
+						frames: Array.apply(null, Array(12)).map(function(_, i) {
+							return i;
+						}),
+						rate: 1 / 10
+					},
+					debug: {
+						frames: Array.apply(null, Array(39)).map(function(_, i) {
+							return i;
+						}),
+						rate: 1 / 10
+					}
+				});
+				Q.animations("generico", {
+					norm: {
+						frames: [0],
+						rate: 1
+					},
+					buck: {
+						frames: [1],
+						rate: 1,
+						loop: false,
+						trigger: "celebrate"
+					},
+					stnd: {
+						frames: [2],
+						rate: 1
+					},
+					sadd: {
+						frames: [3],
+						rate: 1
+					}
+				});
+				loaded.sprites = true;
+			});
+
+			Q.load(["cs/stg5_0.png", "cs/stg5_1.png", "cs/stg5_2.png",
+				"cs/stg6_0.png", "cs/stg6_1.png",
+				"cs/stg7_0.png", "cs/stg7_1.png", "cs/stg7_2.png", "cs/stg7_3.png", "cs/stg7_4.png",
+				"cs/stg8_0.png",
+				"cs/stg9_0.png",
+				"cs/stg10_0.png", "cs/stg10_1.png", "cs/stg10_2.png",
+				"cs/stg13_0.png", "cs/stg13_1.png",
+				"cs/stg14_0.png", "cs/stg14_1.png", "cs/stg14_2.png", "cs/stg14_3.png", "cs/stg14_4.png",
+				"cs/stg14_5.png", "cs/stg14_6.png", "cs/stg14_7.png", "cs/stg14_8.png", "cs/stg14_9.png",
+				"cs/stg15_0.png", "cs/stg15_1.png", "cs/stg15_2.png"
+			], function() {
+				loaded.cutscenes = true;
+			});
+
+			Q.load(["ripfish.png", "ripfish_back.png", "ripfish_belle.png", "sky_day.png",
+				"sky_day_high.png", "sky_mountain.png", "sky_snow.png", "sky_pillar.png",
+				"sky_ponycreator.png", "sky_wall.png", "sky_ocean.png", "sky_clouds.png",
+				"sky_rain.png", "sky_ish.png", "back_tardis.png", "back_endback.png",
+				"sky_bricks.png",
+				"back_space.png", "back_blank.png", "underwater.png",
+				"sky_stars0.png", "sky_stars1.png", "sky_stars2.png"
+			], function() {
+				loaded.backgrounds = true;
+			});
+
+			Q.load(["button0.png", "button1.png", "button2.png", "ntwb.png", "tawdis.png",
+				"tardislight.png", "jumpscare.png", "sa_floor.png", "coolifier.png",
+				"noice.png", "sa_bye.png", "secret.png", "arrow.png", "hydraulic.png",
+				"creditarrows.png"
+			], function() {
+				bundledeath = document.createElement("video");
+				bundledeath.src = "reshorse/rip_bundle.webm";
+				bundledeath.addEventListener("progress", function() {
+					// video very short why track it?
+					//console.log(this.buffered.end(0) / this.duration);
+				});
+				loaded.others = true;
+			});
+
+			Q.load(["death.ogg", "deathexplode.ogg", "rocket1.ogg", "rocket0.ogg",
+				"bucket.ogg", "patrick.ogg", "spartanx.ogg", "exterminate.ogg",
+				"exterminate2.ogg", "naet.ogg", "wdeath.ogg", "proghit.ogg", "crit.ogg",
+				"tgun.ogg", "butthurt.ogg", "bullhit.ogg", "splash.ogg", "WHO1620100.ogg",
+				"eat.ogg", "burn.ogg", "checkpoint.ogg", "spooked.ogg", "dsplasma.ogg",
+				"drag.ogg", "switch.ogg", "jet1.ogg", "beammeme.ogg", "vndlgr.ogg",
+				"wootspam.ogg", "namsplat.ogg", "press.ogg", "laserhit.ogg",
+				"warning.ogg", "otherrocket.ogg"
+			], function() {
+				loaded.sfx = true;
+			});
+
+			Q.load(["200_BIT_FISH_INTRO.ogg", "PROGSIM_EXPRESS.ogg", "EFMENU2.ogg",
+				"SANIC7.ogg", "SAD.ogg", "WL2_38_CLEAR.ogg", "WL3_43_GOLF.ogg",
+				"WL3_44_GOLF.ogg", "TADPOLEDDRD.ogg", "ANTARCTIC.ogg", "KUNGFU.ogg",
+				"FOOTLITTLE.ogg", "RPGM2003BATTLE.ogg", "2SAD4ME.ogg", "K330.ogg",
+				"K331.ogg", "SUBROSIAN2.ogg", "SUBROSIAN.ogg", "200BITCELEBRATE.ogg", 
+				"200BITSELECT.ogg", "UNDERWATER.ogg", "CRYSTAL.ogg", "WCTWAITW.ogg",
+				"CRAZYBUS.ogg"
+			], function() {
+				loaded.music = true;
+			});
+
+			Q.loadTMX(["stage_1.tmx", "stage_2.tmx", "stage_3.tmx", "stage_4.tmx",
+				"stage_5.tmx", "stage_6.tmx", "stage_7.tmx", "stage_8.tmx",
+				"stage_9.tmx", "stage_11.tmx", "stage_12.tmx", "stage_13.tmx",
+				"stage_b1.tmx", "stage_b3.tmx"
+			], function() {
+				loaded.maps = true;
+			});
+		}
+
+		// Quintus code fix
+		Q.canvasToStageY = function(y,stage) {
+			y = y / Q.cssHeight * Q.height;
+			if(stage.viewport) {
+				y /= stage.viewport.scale;
+				y += stage.viewport.y;
+			}
+
+			return y;
+		}
+		
+		var resize = getParameterByName("resize");
+		
+		if (resize == null || resize == "fill" || resize == "keepratio") {	
+
+			keepaspect = (resize == "keepratio");
+			
+			canvas.style.position = "fixed"
+
+			Q.resizeCanvas = function() {
+				// true if tall window
+				//var apple = document.body.clientWidth < document.body.clientHeight;
+				//got lazy
+				canvas.style.width = document.body.clientWidth;
+				canvas.style.height = document.body.clientHeight;
+				Q.cssWidth = document.body.clientWidth;
+				Q.cssHeight = document.body.clientHeight;
+			}
+
+			Q.resizeCanvas();
+
+			window.addEventListener("resize", function() {
+				Q.resizeCanvas();
+			});
+		}
+		
+
+		//startGame();
+		//rollTheFuckingIntroFunction(canvas, delayGame);
+		window.onload = function() {
+			loadIt();
+			canvas.tap = 0;
+			canvas.onmousedown = function(batponiessayeeeesomehow) {
+				canvas.tap ++;
+				if (canvas.tap - 10 == 0) {
+					alert("now expect strange things");
+				}
+			}
+			setTimeout(loadSaveData, 200);
+			delayGame();
+		}
+		/************************ASTERISKS CANT BE CAPITALIZED************************/
+	</script>
+</body>
+
+</html>
