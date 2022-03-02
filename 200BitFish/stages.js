@@ -72,6 +72,18 @@ var loadStages = function() {
 
 	};
 	
+	// horrible performance fix
+	Q.audio.stop = function(s) {
+		for(var key in Q.audio.playingSounds) {
+			var snd = Q.audio.playingSounds[key];
+			if(!s || s === snd.assetName) {
+				if(snd.stop) { snd.stop(0);  } else {  snd.noteOff(0); }
+				delete Q.audio.playingSounds[key];
+			}
+		}
+	};
+
+	
 	Q.gameLoop = function(callback) {
 		
 		Q.lastGameLoopFrame = new Date().getTime();
